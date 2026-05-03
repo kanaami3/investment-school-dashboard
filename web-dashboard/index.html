@@ -20,6 +20,9 @@
 <div class="wrap">
   <h1>日米マーケット・ダッシュボード</h1>
   <div class="meta">最終更新: <span id="last-updated">—</span> ／ Yahoo Finance より自動取得</div>
+  <div style="margin: 8px 0 16px;">
+    <button class="ai-btn" id="ai-market">今日の市場についてAIと話す</button>
+  </div>
 
   <h2>1. 主要指数</h2>
   <div class="grid-3" id="indices">読み込み中…</div>
@@ -177,6 +180,43 @@
       '<td class="num down">' + Dash.fmtNum(r.z_score,2) + '</td>' +
       '<td class="num">' + Dash.fmtNum(r.debt_to_equity,1) + '</td></tr>'
     ).join('');
+
+    // 市場AIボタン: 当日サマリ＋セクター上位3＋モメンタム/Magic上位3を送る
+    document.getElementById('ai-market').onclick = () => {
+      const ix = (k) => {
+        const i = snap.indices[k]; if (!i) return '';
+        return `${i.name} ${Dash.fmtNum(i.close,2)} (${Dash.fmtPct(i.pct)})`;
+      };
+      const topSec = (mkt) => (sectors && sectors[mkt] || [])
+        .slice(0,3).map(s => `${s.sector}(${Dash.fmtPct(s.avg_1w)})`).join(' / ') || '—';
+      const top3 = (rows) => rows.slice(0,3).map(r => `${r.name}(${r.market}/${Dash.fmtPct(r.ret_1w)})`).join(' / ');
+      const bJP = (snap.breadth && snap.breadth.JP) || {};
+      const bUS = (snap.breadth && snap.breadth.US) || {};
+      const prompt =
+`私は投資塾を運営しています。教育目的で本日(${snap.generated_at})の日米マーケット動向を整理したいです。
+
+【主要指数】
+${ix('nikkei')} / ${ix('topix')} / ${ix('sp500')} / ${ix('nasdaq')} / ${ix('dow')} / ${ix('russell')} / ${ix('usdjpy')}
+
+【市場ブレダス】
+JP: A/D ${bJP.advancers||0}/${bJP.decliners||0} / 50日線超 ${Dash.fmtNum(bJP.above_sma50_pct,1)}% / 52週高値近接 ${Dash.fmtNum(bJP.new_highs_pct,1)}% / GC比率 ${Dash.fmtNum(bJP.golden_cross_pct,1)}%
+US: A/D ${bUS.advancers||0}/${bUS.decliners||0} / 50日線超 ${Dash.fmtNum(bUS.above_sma50_pct,1)}% / 52週高値近接 ${Dash.fmtNum(bUS.new_highs_pct,1)}% / GC比率 ${Dash.fmtNum(bUS.golden_cross_pct,1)}%
+
+【セクター週間騰落 上位3】
+JP: ${topSec('JP')}
+US: ${topSec('US')}
+
+【週間モメンタム上位3】 ${top3(mom)}
+【Magic Formula上位3】 ${top3(mg)}
+
+このデータから:
+(1) 今日の市場の主役（牽引セクター・銘柄）
+(2) ブレダスから見た上昇の質（広範か一部主導か）
+(3) JP/USの温度差と為替の効き方
+(4) 来週見るべき注目テーマ
+を投資塾の朝礼用に3〜5行で整理してください。`;
+      Dash.openClaude(prompt);
+    };
   }
 })();
 </script>

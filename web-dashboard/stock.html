@@ -24,6 +24,7 @@
   <div class="toolbar" style="margin-bottom: 16px;">
     <input id="lookup" placeholder="ティッカー (例: 7203.T / AAPL)" style="width:200px">
     <button class="primary" id="lookup-btn">表示</button>
+    <button class="ai-btn" id="ai-btn" style="display:none">この銘柄をAIに相談</button>
     <span class="note">日本株は <code>.T</code> 付き／米国株はそのまま</span>
   </div>
 
@@ -197,6 +198,32 @@ async function showStock(ticker) {
   document.getElementById('jt-display').textContent = Dash.fmtPct(m.momentum_jt);
   document.getElementById('off-display').textContent = Dash.fmtPct(m.pct_off_high52w);
   document.getElementById('vol-display').textContent = Dash.fmtNum(m.vol_60d, 1) + '%';
+
+  // AIに相談ボタン: この銘柄のスナップショットをClaudeに送る
+  const aiBtn = document.getElementById('ai-btn');
+  aiBtn.style.display = 'inline-flex';
+  aiBtn.onclick = () => {
+    const cur = m.currency === 'JPY' ? '円' : (m.currency || 'USD');
+    const prompt =
+`私は投資塾を運営しており、教育目的で次の銘柄について議論したいです。データはYahoo Financeの直近スナップショットです。
+
+【銘柄】${m.name} (${m.ticker}) ／ ${m.market}市場 ／ ${m.sector || '—'}
+【株価】${Dash.fmtNum(m.close, 2)} ${cur} ／ 時価総額 ${Dash.fmtMcap(m.market_cap, m.currency)}
+【リターン】1日 ${Dash.fmtPct(m.ret_1d)} / 1週 ${Dash.fmtPct(m.ret_1w)} / 1ヶ月 ${Dash.fmtPct(m.ret_1m)} / 3ヶ月 ${Dash.fmtPct(m.ret_3m)} / 1年 ${Dash.fmtPct(m.ret_1y)}
+【テクニカル】RSI(14) ${Dash.fmtNum(m.rsi14,1)} / 50日線${m.above_sma50?'超':'下'} / ${m.golden_cross?'GC継続':'DC継続'} / 出来高比 ${Dash.fmtNum(m.vol_ratio,2)}x / 52週高値乖離 ${Dash.fmtPct(m.pct_off_high52w)} / 年率ボラ ${Dash.fmtNum(m.vol_60d,1)}%
+【バリュエーション】PER実績 ${Dash.fmtNum(m.per,1)} / PER予想 ${Dash.fmtNum(m.forward_pe,1)} / PBR ${Dash.fmtNum(m.pbr,2)} / PSR ${Dash.fmtNum(m.ps,2)} / 配当利回り ${Dash.fmtNum(m.div_yield,2)}% / 配当性向 ${Dash.fmtNum(m.payout_ratio,1)}%
+【収益性・財務】ROE ${Dash.fmtNum(m.roe,1)}% / ROA ${Dash.fmtNum(m.roa,1)}% / 営業利益率 ${Dash.fmtNum(m.op_margin,1)}% / D/E ${Dash.fmtNum(m.debt_to_equity,1)} / 流動比率 ${Dash.fmtNum(m.current_ratio,2)}
+【スコア】F-Score ${m.f_score ?? '—'}/5 / Altman Z-Score ${Dash.fmtNum(m.z_score,2)} / Magic Formula ${m.magic_rank?'#'+m.magic_rank:'—'} / JT 12-1モメンタム ${Dash.fmtPct(m.momentum_jt)}
+
+このデータから:
+(1) クオリティ（収益性・財務健全性）の強み・弱み
+(2) バリュエーション面（割安/割高）の評価
+(3) テクニカル面のエントリー/利確の論点
+(4) 主なリスク要因（業界・マクロ・財務）
+(5) 塾生に説明する際のキーメッセージ
+を整理してください。教育目的なので断定的な「買い/売り」ではなく論理の組み立てを示してください。`;
+    Dash.openClaude(prompt);
+  };
 }
 
 (async function () {
