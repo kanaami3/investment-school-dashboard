@@ -56,6 +56,8 @@
       <button class="primary" id="btn-apply">適用</button>
       <button id="btn-reset">リセット</button>
       <button id="btn-csv">CSV ダウンロード</button>
+      <button class="ai-btn" id="btn-ai-indicator">指標の意味をAIに聞く</button>
+      <button class="ai-btn" id="btn-ai-result">この結果をAIと議論</button>
     </div>
   </div>
 
@@ -225,6 +227,72 @@ function downloadCSV() {
   for (const b of document.querySelectorAll('#presets button')) {
     b.addEventListener('click', () => applyPreset(b.dataset.preset));
   }
+
+  // 指標の意味を聞く
+  document.getElementById('btn-ai-indicator').onclick = () => {
+    const prompt =
+`私は投資塾を運営しています。塾生に説明するために、定量スクリーニングで使われる主要スコアと指標の意味を整理してください。
+
+各項目について「式の意味 → 何を示すか → 判断基準（数値の目安） → 限界・注意点」の順で簡潔に解説してください。
+
+対象:
+- Greenblatt Magic Formula（ROC + Earnings Yield のランク合計）
+- Piotroski F-Score（9項目、財務健全性）
+- Altman Z-Score（倒産リスク。>2.99 安全 / <1.81 警戒）
+- Jegadeesh-Titman 12-1モメンタム
+- RSI(14) / SMA50/SMA200 / ゴールデンクロス
+- PER / PBR / PSR / 配当利回り / 配当性向 / ROE / ROA / 営業利益率 / D/E / 流動比率
+- 52週高値乖離率 / 出来高比 / 年率ボラティリティ
+
+最後に「これらをどう組み合わせると初心者でもバランスのとれた銘柄選びができるか」のフレームワークを提示してください。`;
+    Dash.openClaude(prompt);
+  };
+
+  // 現在の結果をAIと議論
+  document.getElementById('btn-ai-result').onclick = () => {
+    // 表示中のグリッドの先頭20件を抽出（フィルタ後の最新dataがbestなのでallRowsから手動再計算）
+    const m = document.getElementById('f-market').value;
+    const sec = document.getElementById('f-sector').value;
+    const per = parseFloat(document.getElementById('f-per-max').value);
+    const pbr = parseFloat(document.getElementById('f-pbr-max').value);
+    const roe = parseFloat(document.getElementById('f-roe-min').value);
+    const dy  = parseFloat(document.getElementById('f-dy-min').value);
+    const fmin= parseFloat(document.getElementById('f-fscore-min').value);
+    const cur = allRows.filter(r => {
+      if (m && r.market !== m) return false;
+      if (sec && r.sector !== sec) return false;
+      if (!isNaN(per) && (r.per === null || r.per > per)) return false;
+      if (!isNaN(pbr) && (r.pbr === null || r.pbr > pbr)) return false;
+      if (!isNaN(roe) && (r.roe === null || r.roe < roe)) return false;
+      if (!isNaN(dy) && (r.div_yield === null || r.div_yield < dy)) return false;
+      if (!isNaN(fmin) && (r.f_score === null || r.f_score < fmin)) return false;
+      return true;
+    }).slice(0, 20);
+    const list = cur.map(r =>
+      `- ${r.ticker.replace('.T','')} ${r.name} (${r.market}/${r.sector||'—'}) PER ${Dash.fmtNum(r.per,1)} PBR ${Dash.fmtNum(r.pbr,2)} ROE ${Dash.fmtNum(r.roe,1)}% 配当 ${Dash.fmtNum(r.div_yield,1)}% F${r.f_score ?? '—'} Z${Dash.fmtNum(r.z_score,2)} 1週 ${Dash.fmtPct(r.ret_1w)}`
+    ).join('\n');
+    const filterDesc = [
+      m && `市場=${m}`, sec && `セクター=${sec}`,
+      !isNaN(per) && `PER≤${per}`, !isNaN(pbr) && `PBR≤${pbr}`,
+      !isNaN(roe) && `ROE≥${roe}%`, !isNaN(dy) && `配当≥${dy}%`,
+      !isNaN(fmin) && `F≥${fmin}`,
+    ].filter(Boolean).join(', ') || '(フィルタなし・全銘柄)';
+    const prompt =
+`私は投資塾の講師で、教育目的で次のスクリーニング結果について議論したいです。
+
+【現在のフィルタ条件】 ${filterDesc}
+
+【ヒット銘柄（先頭20）】
+${list || '(該当なし)'}
+
+このリストから:
+(1) 共通する特徴（業種・規模・ストーリー）
+(2) クオリティ／バリュー／モメンタムの3軸でグルーピング
+(3) ポートフォリオを組むなら除外したい銘柄とその理由
+(4) 塾生に説明する3つのキーメッセージ
+を整理してください。教育目的なので断定的な「買い/売り」ではなく論理の組み立てを示してください。`;
+    Dash.openClaude(prompt);
+  };
 
   if (presetSec) applyFilter();
   else renderGrid(allRows);
