@@ -148,7 +148,11 @@ function renderGrid(rows) {
     r.rsi14, r.f_score, r.z_score, r.magic_rank,
     r.market_cap,
   ]);
-  if (grid) grid.destroy();
+  if (grid) {
+    // Grid.js v5: 再描画は updateConfig + forceRender
+    grid.updateConfig({ data }).forceRender();
+    return;
+  }
   grid = new gridjs.Grid({
     columns: [
       { name: 'Ticker', formatter: (c) => gridjs.html(`<a href="stock.html?t=${encodeURIComponent(c)}"><b>${c.replace('.T','')}</b></a>`) },
