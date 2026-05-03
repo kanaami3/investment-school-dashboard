@@ -1,0 +1,184 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>投資塾 マーケット・ダッシュボード</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="brand">投資塾 ダッシュボード</div>
+  <nav>
+    <a href="index.html" class="active">ダッシュボード</a>
+    <a href="screen.html">スクリーナー</a>
+    <a href="stock.html">個別銘柄</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>日米マーケット・ダッシュボード</h1>
+  <div class="meta">最終更新: <span id="last-updated">—</span> ／ Yahoo Finance より自動取得</div>
+
+  <h2>1. 主要指数</h2>
+  <div class="grid-3" id="indices">読み込み中…</div>
+
+  <h2>2. 市場ブレダス（Market Breadth）</h2>
+  <div class="grid-2" id="breadth">読み込み中…</div>
+  <div class="note">ブレダス指標は「市場全体の参加度」を測ります。Advance/Decline比、52週高値近接率、50日線超銘柄比率は、指数の上昇が広範に支えられているか（健全か）の判断に有効です。</div>
+
+  <h2>3. セクター・ヒートマップ</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3><span class="pill pill-jp">JP</span> 日本市場（直近1週リターン平均）</h3>
+      <div class="heatmap" id="heatmap-jp">読み込み中…</div>
+    </div>
+    <div class="card">
+      <h3><span class="pill pill-us">US</span> 米国市場（直近1週リターン平均）</h3>
+      <div class="heatmap" id="heatmap-us">読み込み中…</div>
+    </div>
+  </div>
+  <div class="note">セクター内の構成銘柄の平均週間リターン。緑=買われている、赤=売られている。クリックでスクリーナーへ。</div>
+
+  <h2>4. ハイライト銘柄</h2>
+  <div class="grid-2">
+    <div class="card">
+      <h3>週間モメンタム TOP（日米合算）</h3>
+      <table id="momentum-table"><thead><tr><th>Ticker</th><th>銘柄</th><th class="num">週間</th><th class="num">RSI</th><th class="num">出来高比</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h3>Magic Formula 上位（クオリティ × バリュー）</h3>
+      <table id="magic-table"><thead><tr><th>Ticker</th><th>銘柄</th><th class="num">PER</th><th class="num">ROE</th><th class="num">Rank</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h3>Piotroski F-Score 高得点</h3>
+      <table id="fscore-table"><thead><tr><th>Ticker</th><th>銘柄</th><th class="num">F</th><th class="num">PER</th><th class="num">PBR</th></tr></thead><tbody></tbody></table>
+    </div>
+    <div class="card">
+      <h3>Altman Z-Score 警戒（&lt;1.81）</h3>
+      <table id="zscore-table"><thead><tr><th>Ticker</th><th>銘柄</th><th class="num">Z</th><th class="num">D/E</th></tr></thead><tbody></tbody></table>
+      <div class="note">Z&lt;1.81は破綻リスク領域、1.81〜2.99はグレーゾーン。教育目的で参考に。</div>
+    </div>
+  </div>
+
+  <div class="footer">
+    本サイトは公開データに基づく教育目的の集計です。投資判断はご自身の責任で行ってください。<br>
+    毎営業日朝7:30 JSTにGitHub Actionsが自動更新します。
+  </div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="assets/app.js"></script>
+<script>
+(async function () {
+  const snap = await Dash.loadJSON('data/snapshot.json');
+  const stocks = await Dash.loadJSON('data/stocks.json');
+  const sectors = await Dash.loadJSON('data/sectors.json');
+  if (!snap) {
+    document.getElementById('indices').textContent = 'データが取得できませんでした。';
+    return;
+  }
+  document.getElementById('last-updated').textContent = snap.generated_at;
+
+  const idxOrder = ['nikkei','topix','sp500','nasdaq','dow','russell','usdjpy'];
+  const idxBox = document.getElementById('indices');
+  idxBox.innerHTML = '';
+  for (const k of idxOrder) {
+    const i = snap.indices[k];
+    if (!i) continue;
+    const isJP = ['nikkei','topix','usdjpy'].includes(k);
+    const klass = Dash.klass(i.pct);
+    idxBox.insertAdjacentHTML('beforeend',
+      '<div class="card">' +
+      '<div class="stat-label"><span class="pill ' + (isJP?'pill-jp':'pill-us') + '">' + (isJP?'JP':'US') + '</span> ' + i.name + '</div>' +
+      '<div class="stat-value">' + Dash.fmtNum(i.close, 2) + '</div>' +
+      '<div class="' + klass + '">' + Dash.fmtSigned(i.change) + ' (' + Dash.fmtPct(i.pct) + ')</div>' +
+      '</div>'
+    );
+  }
+
+  const bBox = document.getElementById('breadth');
+  bBox.innerHTML = '';
+  for (const mkt of ['JP','US']) {
+    const b = (snap.breadth && snap.breadth[mkt]) || {};
+    const cls = mkt === 'JP' ? 'pill-jp' : 'pill-us';
+    bBox.insertAdjacentHTML('beforeend',
+      '<div class="card">' +
+      '<h3><span class="pill ' + cls + '">' + mkt + '</span> ブレダス指標 (n=' + (b.count||0) + ')</h3>' +
+      '<table>' +
+      '<tr><td>Advance / Decline</td><td class="num">' + (b.advancers||0) + ' / ' + (b.decliners||0) + (b.ad_ratio?(' ('+b.ad_ratio.toFixed(2)+')'):'') + '</td></tr>' +
+      '<tr><td>50日線超 比率</td><td class="num">' + Dash.fmtNum(b.above_sma50_pct,1) + '%</td></tr>' +
+      '<tr><td>52週高値近接 (-2%以内)</td><td class="num">' + Dash.fmtNum(b.new_highs_pct,1) + '%</td></tr>' +
+      '<tr><td>ゴールデンクロス比率</td><td class="num">' + Dash.fmtNum(b.golden_cross_pct,1) + '%</td></tr>' +
+      '</table>' +
+      '</div>'
+    );
+  }
+
+  function renderHeat(elId, list) {
+    const el = document.getElementById(elId);
+    if (!list || !list.length) { el.textContent = 'データなし'; return; }
+    el.innerHTML = '';
+    for (const s of list) {
+      const v = s.avg_1w;
+      const bg = Dash.heatColor(v, 5);
+      const fg = Math.abs(v||0) > 2 ? '#fff' : '#1f2937';
+      el.insertAdjacentHTML('beforeend',
+        '<div class="heat-row">' +
+        '<a class="heat-label" href="screen.html?sector=' + encodeURIComponent(s.sector) + '">' + s.sector + '</a>' +
+        '<div class="heat-cell" style="background:' + bg + ';color:' + fg + '">' +
+        '<span>' + Dash.fmtPct(v,2) + '</span><span style="opacity:.8">n=' + s.count + '</span>' +
+        '</div></div>'
+      );
+    }
+  }
+  if (sectors) {
+    renderHeat('heatmap-jp', sectors.JP || []);
+    renderHeat('heatmap-us', sectors.US || []);
+  }
+
+  if (stocks && stocks.rows) {
+    const all = stocks.rows;
+    const tbody = (id) => document.querySelector('#' + id + ' tbody');
+    const link = (r) => '<td><a href="stock.html?t=' + encodeURIComponent(r.ticker) + '"><b>' + r.ticker.replace('.T','') + '</b></a></td>';
+    const name = (r) => '<td>' + (r.name||'').slice(0,20) + '</td>';
+
+    const mom = all
+      .filter(r => r.ret_1w !== null && r.rsi14 !== null && r.rsi14 >= 50 && r.rsi14 <= 75 && r.above_sma50)
+      .sort((a,b) => (b.ret_1w||0)-(a.ret_1w||0))
+      .slice(0, 10);
+    tbody('momentum-table').innerHTML = mom.map(r =>
+      '<tr>' + link(r) + name(r) +
+      '<td class="num up">' + Dash.fmtPct(r.ret_1w) + '</td>' +
+      '<td class="num">' + Dash.fmtNum(r.rsi14,1) + '</td>' +
+      '<td class="num">' + Dash.fmtNum(r.vol_ratio,2) + 'x</td></tr>'
+    ).join('');
+
+    const mg = all.filter(r => r.magic_rank).sort((a,b) => a.magic_rank-b.magic_rank).slice(0, 10);
+    tbody('magic-table').innerHTML = mg.map(r =>
+      '<tr>' + link(r) + name(r) +
+      '<td class="num">' + Dash.fmtNum(r.per,1) + '</td>' +
+      '<td class="num">' + Dash.fmtNum(r.roe,1) + '%</td>' +
+      '<td class="num">' + r.magic_rank + '</td></tr>'
+    ).join('');
+
+    const fs = all.filter(r => r.f_score !== null).sort((a,b) => (b.f_score||0)-(a.f_score||0)).slice(0, 10);
+    tbody('fscore-table').innerHTML = fs.map(r =>
+      '<tr>' + link(r) + name(r) +
+      '<td class="num">' + Dash.scoreBadge(r.f_score, 5) + '</td>' +
+      '<td class="num">' + Dash.fmtNum(r.per,1) + '</td>' +
+      '<td class="num">' + Dash.fmtNum(r.pbr,2) + '</td></tr>'
+    ).join('');
+
+    const zs = all.filter(r => r.z_score !== null && r.z_score < 1.81).sort((a,b) => a.z_score-b.z_score).slice(0, 10);
+    tbody('zscore-table').innerHTML = zs.map(r =>
+      '<tr>' + link(r) + name(r) +
+      '<td class="num down">' + Dash.fmtNum(r.z_score,2) + '</td>' +
+      '<td class="num">' + Dash.fmtNum(r.debt_to_equity,1) + '</td></tr>'
+    ).join('');
+  }
+})();
+</script>
+</body>
+</html>

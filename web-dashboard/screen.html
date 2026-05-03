@@ -1,0 +1,230 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>銘柄スクリーナー｜投資塾</title>
+<link rel="stylesheet" href="assets/style.css">
+<link rel="stylesheet" href="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/theme/mermaid.min.css">
+</head>
+<body>
+<header class="site">
+  <div class="brand">投資塾 ダッシュボード</div>
+  <nav>
+    <a href="index.html">ダッシュボード</a>
+    <a href="screen.html" class="active">スクリーナー</a>
+    <a href="stock.html">個別銘柄</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1>銘柄スクリーナー</h1>
+  <div class="meta">最終更新: <span id="last-updated">—</span> ／ 全 <span id="row-count">0</span> 銘柄</div>
+
+  <h2>プリセット</h2>
+  <div class="card">
+    <div class="toolbar" id="presets">
+      <button data-preset="all">すべて</button>
+      <button data-preset="jp">日本株のみ</button>
+      <button data-preset="us">米国株のみ</button>
+      <button data-preset="magic">Magic Formula 上位</button>
+      <button data-preset="fscore">F-Score 4以上</button>
+      <button data-preset="zsafe">Z-Score 安全 (&gt;2.99)</button>
+      <button data-preset="momentum">モメンタム（RSI 50-72・GC）</button>
+      <button data-preset="value">割安 (PER&lt;15 PBR&lt;1.5)</button>
+      <button data-preset="dividend">高配当 (利回り&gt;3%)</button>
+      <button data-preset="quality">クオリティ (ROE&gt;15)</button>
+      <button data-preset="near-high">52週高値近接 (-3%以内)</button>
+      <button data-preset="oversold">RSI 過売り (&lt;30)</button>
+    </div>
+  </div>
+
+  <h2>カスタムフィルター</h2>
+  <div class="card">
+    <div class="toolbar">
+      <label>市場
+        <select id="f-market"><option value="">すべて</option><option>JP</option><option>US</option></select>
+      </label>
+      <label>セクター <select id="f-sector"><option value="">すべて</option></select></label>
+      <label>PER ≤ <input type="number" id="f-per-max" step="0.1" style="width:80px"></label>
+      <label>PBR ≤ <input type="number" id="f-pbr-max" step="0.1" style="width:80px"></label>
+      <label>ROE ≥ <input type="number" id="f-roe-min" step="0.1" style="width:80px">%</label>
+      <label>配当利回り ≥ <input type="number" id="f-dy-min" step="0.1" style="width:80px">%</label>
+      <label>F-Score ≥ <input type="number" id="f-fscore-min" step="1" style="width:60px"></label>
+      <label>RSI <input type="number" id="f-rsi-min" placeholder="min" style="width:60px"> 〜 <input type="number" id="f-rsi-max" placeholder="max" style="width:60px"></label>
+      <button class="primary" id="btn-apply">適用</button>
+      <button id="btn-reset">リセット</button>
+      <button id="btn-csv">CSV ダウンロード</button>
+    </div>
+  </div>
+
+  <h2>結果</h2>
+  <div id="grid"></div>
+
+  <div class="footer">
+    教育目的の集計です。投資判断はご自身の責任で行ってください。
+  </div>
+</div>
+
+<script src="https://cdn.jsdelivr.net/npm/gridjs@5.0.2/dist/gridjs.umd.js"></script>
+<script src="assets/app.js"></script>
+<script>
+let allRows = [];
+let grid = null;
+
+function applyFilter() {
+  const m = document.getElementById('f-market').value;
+  const sec = document.getElementById('f-sector').value;
+  const per = parseFloat(document.getElementById('f-per-max').value);
+  const pbr = parseFloat(document.getElementById('f-pbr-max').value);
+  const roe = parseFloat(document.getElementById('f-roe-min').value);
+  const dy = parseFloat(document.getElementById('f-dy-min').value);
+  const fmin = parseFloat(document.getElementById('f-fscore-min').value);
+  const rmin = parseFloat(document.getElementById('f-rsi-min').value);
+  const rmax = parseFloat(document.getElementById('f-rsi-max').value);
+
+  const out = allRows.filter(r => {
+    if (m && r.market !== m) return false;
+    if (sec && r.sector !== sec) return false;
+    if (!isNaN(per) && (r.per === null || r.per > per)) return false;
+    if (!isNaN(pbr) && (r.pbr === null || r.pbr > pbr)) return false;
+    if (!isNaN(roe) && (r.roe === null || r.roe < roe)) return false;
+    if (!isNaN(dy) && (r.div_yield === null || r.div_yield < dy)) return false;
+    if (!isNaN(fmin) && (r.f_score === null || r.f_score < fmin)) return false;
+    if (!isNaN(rmin) && (r.rsi14 === null || r.rsi14 < rmin)) return false;
+    if (!isNaN(rmax) && (r.rsi14 === null || r.rsi14 > rmax)) return false;
+    return true;
+  });
+  renderGrid(out);
+  document.getElementById('row-count').textContent = out.length;
+}
+
+function applyPreset(name) {
+  const reset = () => {
+    ['f-market','f-sector','f-per-max','f-pbr-max','f-roe-min','f-dy-min','f-fscore-min','f-rsi-min','f-rsi-max']
+      .forEach(id => { document.getElementById(id).value = ''; });
+  };
+  reset();
+  let rows = allRows;
+  switch (name) {
+    case 'all': break;
+    case 'jp': document.getElementById('f-market').value = 'JP'; break;
+    case 'us': document.getElementById('f-market').value = 'US'; break;
+    case 'magic':
+      rows = allRows.filter(r => r.magic_rank).sort((a,b) => a.magic_rank-b.magic_rank).slice(0, 50);
+      renderGrid(rows); document.getElementById('row-count').textContent = rows.length; return;
+    case 'fscore': document.getElementById('f-fscore-min').value = '4'; break;
+    case 'zsafe':
+      rows = allRows.filter(r => r.z_score !== null && r.z_score > 2.99);
+      renderGrid(rows); document.getElementById('row-count').textContent = rows.length; return;
+    case 'momentum':
+      rows = allRows.filter(r => r.rsi14 !== null && r.rsi14 >= 50 && r.rsi14 <= 72 && r.golden_cross && r.above_sma50);
+      renderGrid(rows); document.getElementById('row-count').textContent = rows.length; return;
+    case 'value':
+      document.getElementById('f-per-max').value = '15';
+      document.getElementById('f-pbr-max').value = '1.5'; break;
+    case 'dividend': document.getElementById('f-dy-min').value = '3'; break;
+    case 'quality': document.getElementById('f-roe-min').value = '15'; break;
+    case 'near-high':
+      rows = allRows.filter(r => r.pct_off_high52w !== null && r.pct_off_high52w > -3);
+      renderGrid(rows); document.getElementById('row-count').textContent = rows.length; return;
+    case 'oversold':
+      rows = allRows.filter(r => r.rsi14 !== null && r.rsi14 < 30);
+      renderGrid(rows); document.getElementById('row-count').textContent = rows.length; return;
+  }
+  applyFilter();
+}
+
+function renderGrid(rows) {
+  const data = rows.map(r => [
+    r.ticker,
+    r.market,
+    r.name || '',
+    r.sector || '',
+    r.close,
+    r.ret_1d, r.ret_1w, r.ret_1m, r.ret_1y,
+    r.per, r.pbr, r.div_yield, r.roe,
+    r.rsi14, r.f_score, r.z_score, r.magic_rank,
+    r.market_cap,
+  ]);
+  if (grid) grid.destroy();
+  grid = new gridjs.Grid({
+    columns: [
+      { name: 'Ticker', formatter: (c) => gridjs.html(`<a href="stock.html?t=${encodeURIComponent(c)}"><b>${c.replace('.T','')}</b></a>`) },
+      { name: '市場', width: '60px' },
+      { name: '銘柄' },
+      { name: 'セクター' },
+      { name: '株価', formatter: c => Dash.fmtNum(c, 2) },
+      { name: '1日%', formatter: c => gridjs.html(`<span class="${Dash.klass(c)}">${Dash.fmtPct(c)}</span>`) },
+      { name: '1週%', formatter: c => gridjs.html(`<span class="${Dash.klass(c)}">${Dash.fmtPct(c)}</span>`) },
+      { name: '1ヶ月%', formatter: c => gridjs.html(`<span class="${Dash.klass(c)}">${Dash.fmtPct(c)}</span>`) },
+      { name: '1年%', formatter: c => gridjs.html(`<span class="${Dash.klass(c)}">${Dash.fmtPct(c)}</span>`) },
+      { name: 'PER', formatter: c => Dash.fmtNum(c, 1) },
+      { name: 'PBR', formatter: c => Dash.fmtNum(c, 2) },
+      { name: '配当%', formatter: c => Dash.fmtNum(c, 2) },
+      { name: 'ROE%', formatter: c => Dash.fmtNum(c, 1) },
+      { name: 'RSI', formatter: c => Dash.fmtNum(c, 1) },
+      { name: 'F', formatter: c => gridjs.html(Dash.scoreBadge(c, 5)) },
+      { name: 'Z', formatter: c => Dash.fmtNum(c, 2) },
+      { name: 'Magic', formatter: c => c || '—' },
+      { name: '時価総額', formatter: (c, row) => Dash.fmtMcap(c, row.cells[1].data === 'JP' ? 'JPY' : 'USD') },
+    ],
+    data,
+    sort: true,
+    search: true,
+    pagination: { limit: 30 },
+    style: { table: { 'font-size': '12px' }, td: { padding: '6px 8px' }, th: { padding: '6px 8px' } },
+    language: { search: { placeholder: '銘柄検索…' }, pagination: { previous: '前', next: '次', showing: '表示中', of: '/', to: '〜', results: '件' } },
+  }).render(document.getElementById('grid'));
+}
+
+function downloadCSV() {
+  const rows = allRows;
+  const headers = ['ticker','market','name','sector','close','ret_1d','ret_1w','ret_1m','ret_1y','per','pbr','div_yield','roe','rsi14','f_score','z_score','magic_rank','market_cap'];
+  const csv = [headers.join(',')].concat(
+    rows.map(r => headers.map(h => {
+      const v = r[h];
+      if (v === null || v === undefined) return '';
+      if (typeof v === 'string') return '"' + v.replace(/"/g, '""') + '"';
+      return v;
+    }).join(','))
+  ).join('\n');
+  const blob = new Blob(['﻿' + csv], { type: 'text/csv;charset=utf-8' });
+  const a = document.createElement('a');
+  a.href = URL.createObjectURL(blob);
+  a.download = `screener_${new Date().toISOString().slice(0,10)}.csv`;
+  a.click();
+}
+
+(async function () {
+  const stocks = await Dash.loadJSON('data/stocks.json');
+  if (!stocks) {
+    document.getElementById('grid').textContent = 'データが取得できませんでした。';
+    return;
+  }
+  document.getElementById('last-updated').textContent = stocks.generated_at;
+  allRows = stocks.rows;
+  document.getElementById('row-count').textContent = allRows.length;
+
+  const sectors = Array.from(new Set(allRows.map(r => r.sector).filter(Boolean))).sort();
+  const sel = document.getElementById('f-sector');
+  for (const s of sectors) sel.insertAdjacentHTML('beforeend', `<option>${s}</option>`);
+
+  // URL ?sector= プリセレクト
+  const presetSec = Dash.qs('sector');
+  if (presetSec) sel.value = presetSec;
+
+  document.getElementById('btn-apply').onclick = applyFilter;
+  document.getElementById('btn-reset').onclick = () => { applyPreset('all'); };
+  document.getElementById('btn-csv').onclick = downloadCSV;
+  for (const b of document.querySelectorAll('#presets button')) {
+    b.addEventListener('click', () => applyPreset(b.dataset.preset));
+  }
+
+  if (presetSec) applyFilter();
+  else renderGrid(allRows);
+})();
+</script>
+</body>
+</html>

@@ -1,0 +1,214 @@
+<!DOCTYPE html>
+<html lang="ja">
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<meta name="robots" content="noindex,nofollow">
+<title>個別銘柄｜投資塾</title>
+<link rel="stylesheet" href="assets/style.css">
+</head>
+<body>
+<header class="site">
+  <div class="brand">投資塾 ダッシュボード</div>
+  <nav>
+    <a href="index.html">ダッシュボード</a>
+    <a href="screen.html">スクリーナー</a>
+    <a href="stock.html" class="active">個別銘柄</a>
+  </nav>
+</header>
+
+<div class="wrap">
+  <h1 id="stock-title">個別銘柄</h1>
+  <div class="meta" id="stock-meta">—</div>
+
+  <div class="toolbar" style="margin-bottom: 16px;">
+    <input id="lookup" placeholder="ティッカー (例: 7203.T / AAPL)" style="width:200px">
+    <button class="primary" id="lookup-btn">表示</button>
+    <span class="note">日本株は <code>.T</code> 付き／米国株はそのまま</span>
+  </div>
+
+  <div id="not-found" style="display:none">
+    <div class="card">
+      <p>このティッカーの詳細データはまだ生成されていません（時価総額上位約300銘柄が対象）。</p>
+      <p>スクリーナーから対象銘柄をクリックしてください。</p>
+    </div>
+  </div>
+
+  <div id="content" style="display:none">
+    <h2>1. 価格推移</h2>
+    <div class="card"><div class="chart-wrap" style="height:320px"><canvas id="price-chart"></canvas></div></div>
+
+    <h2>2. シグナル評価</h2>
+    <div class="grid-3" id="signals">読み込み中…</div>
+
+    <h2>3. ファンダメンタル</h2>
+    <div class="grid-2">
+      <div class="card">
+        <h3>バリュエーション</h3>
+        <table id="fund-val"></table>
+      </div>
+      <div class="card">
+        <h3>収益性・財務健全性</h3>
+        <table id="fund-fin"></table>
+      </div>
+    </div>
+
+    <h2>4. リターン履歴</h2>
+    <div class="card">
+      <table id="returns-table"></table>
+    </div>
+
+    <h2>5. 定量スコア</h2>
+    <div class="grid-3">
+      <div class="card">
+        <div class="stat-label">Piotroski F-Score</div>
+        <div class="stat-value" id="f-display">—</div>
+        <div class="note">財務健全性のスコア（0〜5、簡易版）。3以上が良好の目安。</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Altman Z-Score</div>
+        <div class="stat-value" id="z-display">—</div>
+        <div class="note">倒産リスク。&gt;2.99=安全、1.81-2.99=グレー、&lt;1.81=注意。</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">Magic Formula 順位</div>
+        <div class="stat-value" id="m-display">—</div>
+        <div class="note">同市場内でのGreenblatt式ランキング。低いほど優秀。</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">JT 12-1 モメンタム</div>
+        <div class="stat-value" id="jt-display">—</div>
+        <div class="note">過去12ヶ月リターン − 直近1ヶ月。プラスでモメンタム良好。</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">52週高値からの乖離</div>
+        <div class="stat-value" id="off-display">—</div>
+        <div class="note">0%に近いほど高値圏。-10%以内は強いトレンド継続中の目安。</div>
+      </div>
+      <div class="card">
+        <div class="stat-label">年率ボラティリティ (60日)</div>
+        <div class="stat-value" id="vol-display">—</div>
+        <div class="note">価格変動の大きさ。低ボラ=低リスク、高ボラ=高リスク。</div>
+      </div>
+    </div>
+  </div>
+
+  <div class="footer">教育目的の集計です。投資判断はご自身の責任で行ってください。</div>
+</div>
+
+<script src="https://cdnjs.cloudflare.com/ajax/libs/Chart.js/4.4.1/chart.umd.js"></script>
+<script src="assets/app.js"></script>
+<script>
+async function showStock(ticker) {
+  document.getElementById('not-found').style.display = 'none';
+  document.getElementById('content').style.display = 'none';
+  if (!ticker) return;
+  ticker = ticker.trim();
+  if (!ticker) return;
+
+  const data = await Dash.loadJSON(`data/stocks/${encodeURIComponent(ticker)}.json`);
+  if (!data || !data.meta) {
+    document.getElementById('not-found').style.display = 'block';
+    return;
+  }
+  const m = data.meta;
+  document.getElementById('content').style.display = 'block';
+  document.getElementById('stock-title').textContent = `${m.ticker.replace('.T','')} ${m.name||''}`;
+  document.getElementById('stock-meta').innerHTML =
+    `<span class="pill ${m.market==='JP'?'pill-jp':'pill-us'}">${m.market}</span> ${m.sector||'—'} ／ ${m.industry||''} ／ 株価: ${Dash.fmtNum(m.close,2)}${m.currency==='JPY'?'円':' '+m.currency}`;
+
+  // 価格チャート
+  const labels = data.history.map(h => h.d);
+  const prices = data.history.map(h => h.c);
+  const vols = data.history.map(h => h.v);
+  // SMA
+  const sma = (n) => labels.map((_, i) => {
+    if (i < n - 1) return null;
+    const s = prices.slice(i - n + 1, i + 1).reduce((a,b) => a + (b||0), 0);
+    return s / n;
+  });
+  const sma50 = sma(50);
+  const sma200 = sma(200);
+  const ctx = document.getElementById('price-chart').getContext('2d');
+  if (window._priceChart) window._priceChart.destroy();
+  window._priceChart = new Chart(ctx, {
+    type: 'line',
+    data: { labels,
+      datasets: [
+        { label: '終値', data: prices, borderColor: '#1d3a73', backgroundColor: 'rgba(29,58,115,.08)', borderWidth: 2, tension: 0.2, pointRadius: 0 },
+        { label: 'SMA50', data: sma50, borderColor: '#7a4a09', borderDash: [4,3], borderWidth: 1, pointRadius: 0 },
+        { label: 'SMA200', data: sma200, borderColor: '#962020', borderDash: [4,3], borderWidth: 1, pointRadius: 0 },
+      ],
+    },
+    options: { responsive: true, maintainAspectRatio: false,
+      plugins: { legend: { position: 'bottom', labels: { boxWidth: 10, font: { size: 11 } } } },
+      scales: { x: { ticks: { maxTicksLimit: 12 } } } },
+  });
+
+  // シグナル
+  const sBox = document.getElementById('signals');
+  const sig = [
+    { label: 'RSI(14)', val: Dash.fmtNum(m.rsi14,1), tip: m.rsi14 > 70 ? '過熱注意' : m.rsi14 < 30 ? '過売り' : 'ニュートラル' },
+    { label: '50日線', val: m.above_sma50 ? '上' : '下', tip: m.above_sma50 ? '短期上昇トレンド' : '短期軟調' },
+    { label: 'GC/DC', val: m.golden_cross ? 'GC継続' : 'DC継続', tip: m.golden_cross ? '中期上昇' : '中期軟調' },
+    { label: '出来高比', val: Dash.fmtNum(m.vol_ratio,2)+'x', tip: m.vol_ratio > 1.5 ? '注目度高' : '通常' },
+  ];
+  sBox.innerHTML = sig.map(s => `
+    <div class="card">
+      <div class="stat-label">${s.label}</div>
+      <div class="stat-value">${s.val}</div>
+      <div class="note">${s.tip}</div>
+    </div>`).join('');
+
+  // ファンダ
+  const fv = document.getElementById('fund-val');
+  fv.innerHTML = `
+    <tr><td>PER (実績)</td><td class="num">${Dash.fmtNum(m.per,2)}</td></tr>
+    <tr><td>PER (予想)</td><td class="num">${Dash.fmtNum(m.forward_pe,2)}</td></tr>
+    <tr><td>PBR</td><td class="num">${Dash.fmtNum(m.pbr,2)}</td></tr>
+    <tr><td>PSR</td><td class="num">${Dash.fmtNum(m.ps,2)}</td></tr>
+    <tr><td>配当利回り</td><td class="num">${Dash.fmtNum(m.div_yield,2)}%</td></tr>
+    <tr><td>配当性向</td><td class="num">${Dash.fmtNum(m.payout_ratio,1)}%</td></tr>
+    <tr><td>時価総額</td><td class="num">${Dash.fmtMcap(m.market_cap, m.currency)}</td></tr>`;
+  const ff = document.getElementById('fund-fin');
+  ff.innerHTML = `
+    <tr><td>ROE</td><td class="num">${Dash.fmtNum(m.roe,2)}%</td></tr>
+    <tr><td>ROA</td><td class="num">${Dash.fmtNum(m.roa,2)}%</td></tr>
+    <tr><td>営業利益率</td><td class="num">${Dash.fmtNum(m.op_margin,2)}%</td></tr>
+    <tr><td>負債/自己資本</td><td class="num">${Dash.fmtNum(m.debt_to_equity,1)}</td></tr>
+    <tr><td>流動比率</td><td class="num">${Dash.fmtNum(m.current_ratio,2)}</td></tr>`;
+
+  // リターン
+  const rt = document.getElementById('returns-table');
+  rt.innerHTML = `
+    <thead><tr><th>期間</th><th class="num">リターン</th></tr></thead>
+    <tbody>
+      <tr><td>1日</td><td class="num ${Dash.klass(m.ret_1d)}">${Dash.fmtPct(m.ret_1d)}</td></tr>
+      <tr><td>1週間</td><td class="num ${Dash.klass(m.ret_1w)}">${Dash.fmtPct(m.ret_1w)}</td></tr>
+      <tr><td>1ヶ月</td><td class="num ${Dash.klass(m.ret_1m)}">${Dash.fmtPct(m.ret_1m)}</td></tr>
+      <tr><td>3ヶ月</td><td class="num ${Dash.klass(m.ret_3m)}">${Dash.fmtPct(m.ret_3m)}</td></tr>
+      <tr><td>6ヶ月</td><td class="num ${Dash.klass(m.ret_6m)}">${Dash.fmtPct(m.ret_6m)}</td></tr>
+      <tr><td>1年</td><td class="num ${Dash.klass(m.ret_1y)}">${Dash.fmtPct(m.ret_1y)}</td></tr>
+    </tbody>`;
+
+  document.getElementById('f-display').innerHTML = Dash.scoreBadge(m.f_score, 5);
+  document.getElementById('z-display').textContent = Dash.fmtNum(m.z_score, 2);
+  document.getElementById('m-display').textContent = m.magic_rank ? `#${m.magic_rank}` : '—';
+  document.getElementById('jt-display').textContent = Dash.fmtPct(m.momentum_jt);
+  document.getElementById('off-display').textContent = Dash.fmtPct(m.pct_off_high52w);
+  document.getElementById('vol-display').textContent = Dash.fmtNum(m.vol_60d, 1) + '%';
+}
+
+(async function () {
+  document.getElementById('lookup-btn').onclick = () => {
+    const t = document.getElementById('lookup').value;
+    history.replaceState(null, '', `?t=${encodeURIComponent(t)}`);
+    showStock(t);
+  };
+  const t = Dash.qs('t') || 'AAPL';
+  document.getElementById('lookup').value = t;
+  await showStock(t);
+})();
+</script>
+</body>
+</html>

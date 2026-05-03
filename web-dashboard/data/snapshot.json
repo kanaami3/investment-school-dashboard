@@ -1,0 +1,56 @@
+{
+  "generated_at": "2026-05-03 22:39",
+  "indices": {
+    "nikkei": {
+      "code": "^N225",
+      "name": "日経平均",
+      "close": null,
+      "change": null,
+      "pct": null,
+      "history": []
+    },
+    "topix": {
+      "code": "^TPX",
+      "name": "TOPIX",
+      "close": null,
+      "change": null,
+      "pct": null,
+      "history": []
+    },
+    "sp500": {
+      "code": "^GSPC",
+      "name": "S&P 500",
+      "close": null,
+      "change": null,
+      "pct": null,
+      "history": []
+    },
+    "nasdaq": {
+      "code": "^IXIC",
+      "name": "NASDAQ",
+      "close": null,
+      "change": null,
+      "pct": null,
+      "history": []
+    },
+    "dow": {
+      "code": "^DJI",
+      "name": "Dow Jones",
+      "close": null,
+      "change": null,
+      "pct": null,
+      "history": []
+    },
+    "usdjpy": {
+      "code": "JPY=X",
+      "name": "USD/JPY",
+      "close": null,
+      "change": null,
+      "pct": null,
+      "history": []
+    }
+  },
+  "sp500_top": [],
+  "jp_momentum": [],
+  "us_momentum": []
+}
