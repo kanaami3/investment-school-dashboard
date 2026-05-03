@@ -71,4 +71,10 @@ window.Dash = {
   qs(name) {
     return new URLSearchParams(location.search).get(name);
   },
+  // claude.ai を新規タブで開き、URLパラメータでプロンプトを事前充填する。
+  // 日本語のURLエンコード後 ~6KB 以下を目安にプロンプトを構成すること。
+  openClaude(prompt) {
+    const url = 'https://claude.ai/new?q=' + encodeURIComponent(prompt);
+    window.open(url, '_blank', 'noopener,noreferrer');
+  },
 };
