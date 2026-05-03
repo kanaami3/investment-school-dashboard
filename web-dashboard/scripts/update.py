@@ -200,9 +200,16 @@ def fetch_one(ticker: str, market: str) -> Optional[StockRow]:
             "Utilities": "公益", "Real Estate": "不動産", "Basic Materials": "素材",
         }.get(sector, sector)
 
+    # 銘柄名: 日本株は universe.JP_NAMES の和名を優先
+    if market == "JP":
+        code = ticker.replace(".T", "")
+        name = universe.JP_NAMES.get(code) or info.get("shortName") or ticker
+    else:
+        name = info.get("shortName") or info.get("longName") or ticker
+
     return StockRow(
         ticker=ticker,
-        name=info.get("shortName") or info.get("longName") or ticker,
+        name=name,
         market=market,
         sector=sector,
         industry=info.get("industry"),
