@@ -39,7 +39,8 @@ jobs:
           git add web-dashboard/data/
           if ! git diff --staged --quiet; then
             git commit -m "chore: refresh data $(date -u +'%Y-%m-%d %H:%MZ')"
-            git push
+            git pull --rebase origin main || true
+            git push || echo "push failed (data may be already current)"
           fi
       - uses: actions/configure-pages@v5
       - uses: actions/upload-pages-artifact@v3
