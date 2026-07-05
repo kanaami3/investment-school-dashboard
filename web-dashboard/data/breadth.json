@@ -1,20 +1,20 @@
 {
  "JP": {
   "count": 133,
-  "advancers": 104,
-  "decliners": 28,
-  "ad_ratio": 3.7142857142857144,
-  "new_highs_pct": 9.022556390977442,
-  "above_sma50_pct": 60.902255639097746,
-  "golden_cross_pct": 54.88721804511278
+  "advancers": 113,
+  "decliners": 19,
+  "ad_ratio": 5.947368421052632,
+  "new_highs_pct": 13.533834586466165,
+  "above_sma50_pct": 68.42105263157895,
+  "golden_cross_pct": 54.13533834586466
  },
  "US": {
-  "count": 215,
-  "advancers": 151,
-  "decliners": 64,
-  "ad_ratio": 2.359375,
-  "new_highs_pct": 19.53488372093023,
-  "above_sma50_pct": 66.97674418604652,
-  "golden_cross_pct": 59.06976744186046
+  "count": 216,
+  "advancers": 153,
+  "decliners": 63,
+  "ad_ratio": 2.4285714285714284,
+  "new_highs_pct": 19.90740740740741,
+  "above_sma50_pct": 66.20370370370371,
+  "golden_cross_pct": 59.25925925925925
  }
 }
