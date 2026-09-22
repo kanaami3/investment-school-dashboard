@@ -10,11 +10,11 @@
  },
  "US": {
   "count": 215,
-  "advancers": 74,
-  "decliners": 141,
-  "ad_ratio": 0.524822695035461,
-  "new_highs_pct": 2.7906976744186047,
-  "above_sma50_pct": 28.837209302325583,
-  "golden_cross_pct": 67.44186046511628
+  "advancers": 0,
+  "decliners": 0,
+  "ad_ratio": null,
+  "new_highs_pct": 0.0,
+  "above_sma50_pct": 0.0,
+  "golden_cross_pct": 0.0
  }
 }
