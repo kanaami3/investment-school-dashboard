@@ -1,11 +1,11 @@
 {
  "JP": {
   "count": 133,
-  "advancers": 64,
-  "decliners": 67,
-  "ad_ratio": 0.9552238805970149,
-  "new_highs_pct": 6.7669172932330826,
-  "above_sma50_pct": 56.390977443609025,
+  "advancers": 82,
+  "decliners": 49,
+  "ad_ratio": 1.6734693877551021,
+  "new_highs_pct": 6.015037593984962,
+  "above_sma50_pct": 54.88721804511278,
   "golden_cross_pct": 70.67669172932331
  },
  "US": {
